@@ -1,0 +1,15 @@
+{
+  "decision": "rebalance_now",
+  "triggered_rules": [
+    "low_bikes_high_demand",
+    "overdue_rebalance"
+  ],
+  "validated_actions": [
+    "dispatch_rebalancing_van",
+    "notify_zone_supervisor"
+  ],
+  "unknown_facts": [
+    "current_temperature_c"
+  ],
+  "note": "Supplied by the upstream rule engine and planner (Topics 5-6 practice). This wrapper practice starts from this file already produced - you are not asked to rebuild the rule engine here, only to communicate its result safely."
+}

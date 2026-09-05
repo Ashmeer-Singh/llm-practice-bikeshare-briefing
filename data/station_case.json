@@ -1,0 +1,13 @@
+{
+  "case_id": "BIKE-2026-014",
+  "station_id": "STN-042",
+  "zone": "NORTH-CAMPUS",
+  "period": "morning",
+  "bikes_available": 2,
+  "docks_available": 1,
+  "dock_capacity": 18,
+  "demand_trend": "rising",
+  "last_rebalanced_hours_ago": 26,
+  "current_temperature_c": null,
+  "staff_on_shift": 1
+}

@@ -1,0 +1,46 @@
+name: Practice CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [practice]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the submitted commit
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run practice checks
+        run: pytest -v
+
+      - name: Run the wrapper end to end (offline mode only - no network, no account, no cost)
+        run: python -m src.app --case data/station_case.json --trace data/decision_trace.json --output outputs/result.json
+
+      - name: Upload the result for the student's records
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: practice-result-${{ github.sha }}
+          path: |
+            outputs/result.json
+            outputs/briefing.txt
+          if-no-files-found: warn
