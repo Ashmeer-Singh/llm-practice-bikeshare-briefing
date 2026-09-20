@@ -19,6 +19,8 @@ note on that function before you touch it.
 """
 from __future__ import annotations
 
+import json
+import re
 import socket
 from typing import Any
 
@@ -57,8 +59,13 @@ def build_prompt(instruction: str, validated_context: dict[str, Any], example: s
     Label each section plainly, for example:
         "Instruction: ...\\nExample: ...\\nValidated context: {...}"
     """
-    raise NotImplementedError(
-        "build_prompt: combine instruction, example and validated_context into one labelled string"
+    # json.dumps keeps every key/value pair visible (including nulls) and
+    # sort_keys makes the prompt identical every time for the same context.
+    context_text = json.dumps(validated_context, indent=2, sort_keys=True, default=str)
+    return (
+        f"Instruction: {instruction}\n\n"
+        f"Example: {example}\n\n"
+        f"Validated context:\n{context_text}"
     )
 
 
@@ -88,9 +95,26 @@ def offline_briefing(validated_context: dict[str, Any]) -> str:
     exists specifically to catch a briefing that breaks this rule, but the
     correct fix is to never generate one that does.
     """
-    raise NotImplementedError(
-        "offline_briefing: build a deterministic briefing string from validated_context only"
-    )
+    ctx = validated_context
+    lines = [
+        f"Briefing for station {ctx['station_id']} in zone {ctx['zone']}.",
+        f"Bikes available: {ctx['bikes_available']}. "
+        f"Docks available: {ctx['docks_available']}.",
+        f"Decision: {ctx['decision']}.",
+    ]
+
+    actions = ctx.get("validated_actions", [])
+    if actions:
+        lines.append("Validated actions: " + ", ".join(actions) + ".")
+    else:
+        lines.append("Validated actions: none.")
+
+    # State every unknown fact honestly instead of guessing a value.
+    for fact in ctx.get("unknown_facts", []):
+        lines.append(f"{fact} is unknown; no value is available, so none is assumed.")
+
+    lines.append("Human approval is required before any action is taken.")
+    return "\n".join(lines)
 
 
 def try_local_model(prompt: str, validated_context: dict[str, Any], host: str = "localhost", port: int = 11434, timeout: float = 0.3) -> str:
@@ -161,9 +185,19 @@ def check_critical_facts(briefing_text: str, validated_context: dict[str, Any], 
     Task 5(c) asks for; call this with at least two entries in
     `required_facts` when you use it in `app.py`.
     """
-    raise NotImplementedError(
-        "check_critical_facts: return the required_facts whose value is not present in briefing_text"
-    )
+    missing: list[str] = []
+    for name in required_facts:
+        value = validated_context.get(name)
+        # A fact that is absent or null cannot be confirmed in the briefing.
+        if value is None:
+            missing.append(name)
+            continue
+        # Whole-token match, so a value like "2" is not "found" inside
+        # "STN-042" or "26". Case-insensitive for text values.
+        pattern = r"(?<!\w)" + re.escape(str(value)) + r"(?!\w)"
+        if not re.search(pattern, briefing_text, flags=re.IGNORECASE):
+            missing.append(name)
+    return missing
 
 
 def reject_unsupported_actions(briefing_text: str, validated_actions: list[str], candidate_actions: list[str]) -> list[str]:
@@ -178,6 +212,17 @@ def reject_unsupported_actions(briefing_text: str, validated_actions: list[str],
     in `app.py`, a non-empty result must stop that action from ever
     reaching the human officer.
     """
-    raise NotImplementedError(
-        "reject_unsupported_actions: return candidate_actions mentioned in briefing_text but absent from validated_actions"
-    )
+    def normalise(text: str) -> str:
+        # "close_station", "Close-Station" and "close station" all match.
+        return re.sub(r"[_\-\s]+", " ", text.lower()).strip()
+
+    briefing_norm = normalise(briefing_text)
+    validated_norm = {normalise(a) for a in validated_actions}
+
+    rejected: list[str] = []
+    for action in candidate_actions:
+        action_norm = normalise(action)
+        if action_norm in briefing_norm and action_norm not in validated_norm:
+            if action not in rejected:
+                rejected.append(action)
+    return rejected
