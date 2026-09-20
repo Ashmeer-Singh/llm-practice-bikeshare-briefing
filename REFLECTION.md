@@ -1,36 +1,23 @@
-# Reflection (Task 5c/5d practice)
+# Reflection: LLM Practice - Bike-Share Rebalancing Briefing
 
-Fill this in after `python -m src.app` runs successfully and
-`outputs/result.json` shows `"safe_to_show_officer": true`.
+## 1. Critical Facts
+* **Fact 1:** `bikes_available` | **Value:** `2` | **Appears in briefing as:** `"Bikes available: 2."`
+* **Fact 2:** `docks_available` | **Value:** `1` | **Appears in briefing as:** `"Docks available: 1."`
 
-## Two critical facts you checked
+## 2. Refused Action
+* **Refused Action:** `['close_station']`
 
-Open `outputs/result.json`. `required_facts_checked` lists the two facts
-`check_critical_facts()` verified against your briefing.
+* **Evidence:**
+When running a test scratch script with a briefing recommending both `dispatch_rebalancing_van` and `close_station`, `reject_unsupported_actions` correctly identified and returned `['close_station']` as the unvalidated action.
 
-1. Fact: ____________________ Value in the data: ____________________
-   Where does it appear, worded or numbered, in your briefing text?
+* **Why unvalidated actions must be rejected:**
+Only the upstream rule engine and system planner have the authority to validate action lists, which a human operator ultimately approves. The LLM is only meant to format and summarize the briefing, not decide on operational policy. If the wrapper doesn't filter out unapproved actions, an AI hallucination could trigger unintended real-world consequences—such as closing down a busy station without authorization and leaving riders stranded.
 
-2. Fact: ____________________ Value in the data: ____________________
-   Where does it appear, worded or numbered, in your briefing text?
+## 3. Risk and Control
+* **Concrete Risk:** 
+The LLM could hallucinate incorrect operational data, such as writing that there are 10 bikes available when there are actually only 2, which could cause officers to send vans or resources to the wrong location.
 
-## The action your wrapper correctly refused
-
-`candidate_actions_checked` includes one action, `close_station`, that is
-deliberately **not** in `decision_trace.json`'s `validated_actions`. Confirm
-`reject_unsupported_actions()` catches it if it ever appeared in a
-briefing (you can test this yourself by temporarily editing a briefing
-string in a scratch script - not in `src/llm_wrapper.py` itself).
-
-Explain in your own words: why must a wrapper reject an action a
-human officer never asked the system to validate, even if the action
-sounds reasonable on its face?
-
-## One bias, hallucination, privacy or responsible-use risk
-
-State one specific risk this kind of wrapper could pose if it were used
-for real, and one specific control (already in this wrapper, or one you
-would add) that reduces it. Not "the AI could be wrong" - name a concrete
-failure and a concrete control, the way `offline_briefing()`'s explicit
-"unknown" handling is a concrete control for the specific risk of a
-confident-sounding invented number.
+* **Concrete Control:** 
+We use the `check_critical_facts` function to verify that essential values appear in the text. If any required fact is missing or incorrect, `app.py` sets `safe_to_show_officer` to `false` so the unsafe briefing isn't shown. Additionally, forcing the model to explicitly state "unknown" for missing data prevents it from inventing numbers.
+* **Limit of Control:** 
+This control only checks whether the exact required strings and numbers are present in the text. It cannot evaluate whether the broader context surrounding those numbers is fully logical or accurate.
